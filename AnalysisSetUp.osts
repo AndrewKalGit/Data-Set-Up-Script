@@ -1,0 +1,99 @@
+function main(workbook: ExcelScript.Workbook) {
+
+  // Get the worksheets
+
+  let ssSheet = workbook.getWorksheet("SS");
+
+  let pasteSheet = workbook.getWorksheet("PASTE SS Data");
+
+  let querySheet = workbook.getWorksheet("Query");
+
+  // Get the last row index in the SS sheet
+
+  let lastRowIndex = ssSheet.getUsedRange().getLastRow().getRowIndex() + 1;
+
+  // Select all visible (non-filtered) data in the "SS" sheet from A2 to AJ (excluding headers)
+
+  let ssRange = ssSheet.getRange(`A2:AJ${lastRowIndex}`);
+
+  let ssVisibleRange = ssRange.getVisibleView();
+
+  if (ssVisibleRange) {
+
+    let ssData = ssVisibleRange.getValues();
+
+    if (ssData && ssData.length > 0) { // Ensure there's data
+
+      // Paste data into "PASTE SS Data" starting at A6
+
+      let pasteStartCell = pasteSheet.getRange("A6");
+
+      let pasteTargetRange = pasteSheet.getRange(
+
+        pasteStartCell.getAddress() + ":" + pasteStartCell.getCell(ssData.length - 1, ssData[0].length - 1).getAddress()
+
+      );
+
+      pasteTargetRange.setValues(ssData);
+
+      // Bulk color all the pasted data orange (faster than row-by-row)
+
+      pasteTargetRange.getFormat().getFill().setColor("FFA500");
+
+      // Get the value of the last row in "PASTE SS Data"
+
+      let pasteLastRow = pasteSheet.getUsedRange().getLastRow().getRowIndex() + 1;
+
+      let lastRowValue = pasteSheet.getCell(pasteLastRow - 1, 0).getValue() as number;
+
+      // Update the "Query" tab with the value of the last row in column A and set value 1
+
+      querySheet.getCell(lastRowValue - 1, 0).setValue(1);
+
+      // Get the formulas from row A12:O12
+
+      let row12Range = querySheet.getRange("A12:O12");
+
+      let row12Formulas = row12Range.getFormulas();
+
+      // Calculate how many times to copy A12:O12 (based on the number of rows in SS data) and subtract 6
+
+      let targetRowCount = ssData.length - 6; // Subtract 6 for pre-existing rows
+
+      // Ensure targetRowCount is valid (avoid negative range issues)
+
+      if (targetRowCount > 0) {
+
+        // Populate formulas first, without adjusting references (simulate Ctrl+Enter after all rows are filled)
+
+        let targetRangeQuery = querySheet.getRange(`A12:O${11 + targetRowCount}`);
+
+        targetRangeQuery.setFormulas(Array.from({ length: targetRowCount }, () => [...row12Formulas[0]]));
+
+        // Bulk copy formatting for the entire range (fastest way)
+
+        querySheet.getRange(`A12:O${11 + targetRowCount}`).copyFrom(row12Range, ExcelScript.RangeCopyType.formats);
+
+        // Apply "Ctrl+Enter" mechanics only after filling all rows
+
+        let ctrlEnterRange = querySheet.getRange(`A12:O${11 + targetRowCount}`);
+
+        let firstRowFormulas = ctrlEnterRange.getFormulasR1C1()[0]; // Get the first row formulas
+
+        ctrlEnterRange.setFormulasR1C1(Array.from({ length: targetRowCount }, () => [...firstRowFormulas]));
+
+      }
+
+    } else {
+
+      console.log("No data found in the visible range of 'SS' worksheet.");
+
+    }
+
+  } else {
+
+    console.log("No visible range found in the 'SS' worksheet.");
+
+  }
+
+}
